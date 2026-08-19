@@ -7,6 +7,7 @@ Redis keys (when Redis is configured):
 Default implementation is in-memory so tests need no live Redis.
 In-memory is used only when REDIS_URL is absent. If REDIS_URL is set,
 connection and operation errors propagate (no silent memory fallback).
+Appends are atomic: memory holds `_lock`; Redis uses WATCH/MULTI CAS.
 """
 
 from __future__ import annotations
@@ -73,15 +74,29 @@ def _append_memory(store: Dict[int, List[dict]], user_id: int, isbn: str) -> Non
 
 
 def _append_redis(key: str, isbn: str) -> None:
+    """Append with WATCH/MULTI so concurrent writers cannot drop items."""
+    import redis as redis_lib
+
     client = _get_redis()
     assert client is not None
     row = _book_row(isbn)
-    raw = client.get(key)
-    items: List[dict] = json.loads(raw) if raw else []
-    if any(i.get("isbn") == isbn for i in items):
-        return
-    items.append(row)
-    client.set(key, json.dumps(items))
+
+    with client.pipeline() as pipe:
+        while True:
+            try:
+                pipe.watch(key)
+                raw = pipe.get(key)
+                items: List[dict] = json.loads(raw) if raw else []
+                if any(i.get("isbn") == isbn for i in items):
+                    pipe.unwatch()
+                    return
+                items.append(row)
+                pipe.multi()
+                pipe.set(key, json.dumps(items))
+                pipe.execute()
+                return
+            except redis_lib.WatchError:
+                continue
 
 
 def _get_memory(store: Dict[int, List[dict]], user_id: int) -> List[dict]:

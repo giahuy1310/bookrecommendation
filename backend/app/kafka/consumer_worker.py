@@ -22,9 +22,15 @@ logger = logging.getLogger(__name__)
 def apply_interaction(event: InteractionEvent) -> bool:
     """Set context ISBN, generate stub picks, write to store (same path as POST).
 
-    Ignores stale events whose createdAtMs is older than the latest applied for
-    that user. Returns False when ignored.
+    Stale events (older createdAtMs) skip context/top-picks updates but still
+    append to collection/cart for ADD_TO_* types. Returns False when
+    context/top-picks were skipped as stale.
     """
+    if event.eventType == "ADD_TO_COLLECTION":
+        user_lists.add_to_collection(event.userId, event.isbn)
+    elif event.eventType == "ADD_TO_CART":
+        user_lists.add_to_cart(event.userId, event.isbn)
+
     if not user_state.set_context_isbn(event.userId, event.isbn, event.createdAtMs):
         logger.info(
             "Ignoring stale interaction userId=%s createdAtMs=%s isbn=%s",
@@ -33,10 +39,6 @@ def apply_interaction(event: InteractionEvent) -> bool:
             event.isbn,
         )
         return False
-    if event.eventType == "ADD_TO_COLLECTION":
-        user_lists.add_to_collection(event.userId, event.isbn)
-    elif event.eventType == "ADD_TO_CART":
-        user_lists.add_to_cart(event.userId, event.isbn)
     books = books_search.get_catalog()
     picks = generate_stub_picks(event.userId, event.isbn, books)
     set_top_picks(

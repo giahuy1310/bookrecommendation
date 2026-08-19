@@ -140,6 +140,8 @@ def test_stale_interaction_does_not_overwrite_newer_context():
     data = top_picks_store.get_top_picks(9)
     assert data["contextIsbn"] == "ISBN0005"
     assert user_state.get_context_isbn(9) == "ISBN0005"
+    # Stale ADD_TO_CART still appends to the cart list.
+    assert [i["isbn"] for i in user_lists.get_cart(9)] == ["ISBN0001"]
 
 
 def test_search_extracts_books_csv_from_data_zip(tmp_path, monkeypatch):

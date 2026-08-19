@@ -123,3 +123,35 @@ def test_collection_and_cart_are_separate_lists():
     cart = client.get("/api/cart?userId=77").json()["items"]
     assert [i["isbn"] for i in collection] == ["ISBN0001"]
     assert [i["isbn"] for i in cart] == ["ISBN0002"]
+
+
+def test_stale_add_to_cart_still_appears_in_cart():
+    """Stale ADD_TO_CART must still land in GET /api/cart; only context/picks skip."""
+    client = TestClient(app)
+    newer = client.post(
+        "/api/interactions",
+        json={
+            "userId": 88,
+            "isbn": "ISBN0005",
+            "eventType": "READ",
+            "createdAtMs": 2_000,
+        },
+    )
+    assert newer.status_code == 200
+
+    stale = client.post(
+        "/api/interactions",
+        json={
+            "userId": 88,
+            "isbn": "ISBN0001",
+            "eventType": "ADD_TO_CART",
+            "createdAtMs": 1_000,
+        },
+    )
+    assert stale.status_code == 200
+
+    cart = client.get("/api/cart?userId=88").json()
+    assert [i["isbn"] for i in cart["items"]] == ["ISBN0001"]
+
+    picks = client.get("/api/top-picks?userId=88").json()
+    assert picks["contextIsbn"] == "ISBN0005"

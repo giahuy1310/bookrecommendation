@@ -85,12 +85,23 @@ def get_picks(userId: int, contextIsbn: str, num: int = 30) -> list[dict[str, An
     user_position = user_positions.get(int(userId))
     if user_position is None:
         scores = similarities
+        candidate_indices = range(len(item_ids))
     else:
         als_ratings = item_factors @ user_factors[user_position]
         scores = (0.6 * als_ratings) + (0.4 * similarities)
+        candidate_indices = sorted(
+            (
+                index
+                for index, book_id in enumerate(item_ids)
+                if int(book_id) != context_id
+            ),
+            key=lambda index: als_ratings[index],
+            reverse=True,
+        )[:num]
 
     candidates: list[tuple[float, str]] = []
-    for index, book_id in enumerate(item_ids):
+    for index in candidate_indices:
+        book_id = item_ids[index]
         isbn = book_id_to_isbn.get(int(book_id))
         if (
             isbn is None

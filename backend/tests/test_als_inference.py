@@ -74,6 +74,53 @@ def test_get_picks_unknown_user_falls_back_to_context_similarity(tmp_path, monke
     assert picks[0]["finalScore"] > 0.3
 
 
+def test_get_picks_drops_context_after_als_top_n(tmp_path, monkeypatch):
+    """Regression: remove context from the ALS top-N slice, not before it.
+
+    ALS order: CTX (#1) > A (#2) > B (#3). With num=2 the raw top-2 is
+    [CTX, A]; dropping CTX afterward leaves only A. Pre-filtering context
+    before top-N would admit B as the second pick (wrong).
+    """
+    np.savez(
+        tmp_path / "user_factors.npz",
+        ids=np.array([7]),
+        factors=np.array([[1.0, 0.0]]),
+    )
+    np.savez(
+        tmp_path / "item_factors.npz",
+        ids=np.array([10, 11, 12, 13]),
+        factors=np.array(
+            [
+                [1.0, 0.0],  # CTX — highest ALS dot
+                [0.9, 0.1],  # A — second
+                [0.8, 0.2],  # B — third (similarity > 0.3 if wrongly admitted)
+                [-1.0, 0.0],  # C — excluded by low ALS / similarity
+            ]
+        ),
+    )
+    (tmp_path / "isbn_to_id.json").write_text(
+        json.dumps({"CTX": 10, "A": 11, "B": 12, "C": 13})
+    )
+    (tmp_path / "book_id_to_isbn.json").write_text(
+        json.dumps({"10": "CTX", "11": "A", "12": "B", "13": "C"})
+    )
+    (tmp_path / "books.json").write_text(
+        json.dumps(
+            {
+                "A": {"title": "Alpha", "author": "Author A"},
+                "B": {"title": "Beta", "author": "Author B"},
+            }
+        )
+    )
+    _configure_artifacts(monkeypatch, tmp_path)
+
+    picks = als_inference.get_picks(7, "CTX", num=2)
+
+    isbns = [pick["isbn"] for pick in picks]
+    assert "B" not in isbns
+    assert "A" in isbns
+
+
 def test_get_picks_reranks_only_top_als_candidates(tmp_path, monkeypatch):
     np.savez(
         tmp_path / "user_factors.npz",

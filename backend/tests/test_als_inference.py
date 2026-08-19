@@ -146,7 +146,7 @@ def test_exported_fake_spark_artifacts_load_in_get_picks(tmp_path, monkeypatch):
     )
     _configure_artifacts(monkeypatch, tmp_path)
 
-    picks = als_inference.get_picks(7, "CTX", num=1)
+    picks = als_inference.get_picks(7, "CTX", num=2)
 
     assert picks == [
         {

@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import AuthGuard from "../../components/AuthGuard";
 import { getUserId, logout } from "../../lib/auth";
 
 export default function ProfilePage() {
@@ -19,12 +20,14 @@ export default function ProfilePage() {
   }
 
   return (
-    <section>
-      <h1>User profile</h1>
-      <p>User id: {userId ?? "—"}</p>
-      <button type="button" onClick={handleLogout}>
-        Log out
-      </button>
-    </section>
+    <AuthGuard requireAuth redirectTo="/login">
+      <section>
+        <h1>User profile</h1>
+        <p>User id: {userId ?? "—"}</p>
+        <button type="button" onClick={handleLogout}>
+          Log out
+        </button>
+      </section>
+    </AuthGuard>
   );
 }

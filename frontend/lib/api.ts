@@ -48,6 +48,28 @@ export async function getTopPicks(userId: number): Promise<TopPicksResponse> {
   );
 }
 
+/** Alias used by tests / Task 3 brief; same as getTopPicks. */
+export const fetchTopPicks = getTopPicks;
+
+export type UserListResponse = {
+  userId: number;
+  items: BookRow[];
+};
+
+export async function getCollection(
+  userId: number
+): Promise<UserListResponse> {
+  return request<UserListResponse>(
+    `/api/collection?userId=${encodeURIComponent(String(userId))}`
+  );
+}
+
+export async function getCart(userId: number): Promise<UserListResponse> {
+  return request<UserListResponse>(
+    `/api/cart?userId=${encodeURIComponent(String(userId))}`
+  );
+}
+
 export async function searchBooks(
   q: string,
   limit = 20

@@ -20,3 +20,14 @@ class TopPicksResponse(BaseModel):
     userId: int
     contextIsbn: Optional[str]
     picks: List[Pick]
+
+
+class BookRow(BaseModel):
+    isbn: str
+    title: str
+    author: str
+
+
+class UserListResponse(BaseModel):
+    userId: int
+    items: List[BookRow]

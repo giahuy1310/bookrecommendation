@@ -12,7 +12,7 @@ from typing import Any, Dict
 
 from app.kafka.client import TOPIC_USER_INTERACTIONS, kafka_bootstrap_servers, kafka_enabled
 from app.schemas import InteractionEvent
-from app.services import books_search, user_state
+from app.services import books_search, user_lists, user_state
 from app.services.recommendations_stub import generate_stub_picks
 from app.services.top_picks_store import set_top_picks
 
@@ -33,6 +33,10 @@ def apply_interaction(event: InteractionEvent) -> bool:
             event.isbn,
         )
         return False
+    if event.eventType == "ADD_TO_COLLECTION":
+        user_lists.add_to_collection(event.userId, event.isbn)
+    elif event.eventType == "ADD_TO_CART":
+        user_lists.add_to_cart(event.userId, event.isbn)
     books = books_search.get_catalog()
     picks = generate_stub_picks(event.userId, event.isbn, books)
     set_top_picks(

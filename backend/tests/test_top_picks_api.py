@@ -7,7 +7,7 @@ from app.kafka import producer as kafka_producer
 from app.kafka.consumer_worker import apply_interaction
 from app.main import app
 from app.schemas import InteractionEvent
-from app.services import books_search, top_picks_store, user_state
+from app.services import books_search, top_picks_store, user_lists, user_state
 
 
 SAMPLE_BOOKS = [
@@ -40,11 +40,13 @@ SAMPLE_BOOKS = [
 def reset_state():
     top_picks_store.clear()
     user_state.clear()
+    user_lists.clear()
     books_search.set_catalog(SAMPLE_BOOKS)
     kafka_producer.set_producer(None)
     yield
     top_picks_store.clear()
     user_state.clear()
+    user_lists.clear()
     books_search.reset_catalog()
     kafka_producer.set_producer(None)
 

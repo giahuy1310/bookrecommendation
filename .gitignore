@@ -1,0 +1,17 @@
+.worktrees/
+.superpowers/
+.codegraph/
+.cursor/
+.DS_Store
+__pycache__/
+*.pyc
+.pytest_cache/
+.venv/
+venv/
+node_modules/
+.next/
+.env
+.env.local
+*.egg-info/
+.coverage
+htmlcov/

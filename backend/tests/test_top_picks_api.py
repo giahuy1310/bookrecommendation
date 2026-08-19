@@ -120,6 +120,11 @@ def test_post_interaction_returns_502_when_kafka_produce_fails():
     }
     resp = client.post("/api/interactions", json=payload)
     assert resp.status_code == 502
+    # Produce failed: local store must not have been mutated.
+    picks = client.get("/api/top-picks", params={"userId": 7}).json()
+    assert picks["userId"] == 7
+    assert picks["contextIsbn"] is None
+    assert picks["picks"] == []
 
 
 def test_stale_interaction_does_not_overwrite_newer_context():

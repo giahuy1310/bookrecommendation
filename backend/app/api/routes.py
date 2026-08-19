@@ -17,16 +17,17 @@ def top_picks(userId: int):
 
 @router.post("/interactions")
 def post_interaction(event: InteractionEvent):
-    # Persist context + stub picks immediately so GET right after POST works.
-    apply_interaction(event)
+    # Produce first when Kafka is configured (or test override). On failure,
+    # return 502 without mutating local store. When Kafka is unset,
+    # produce_interaction is a no-op and we still apply locally.
     try:
         produce_interaction(event)
     except Exception:
-        # Kafka configured (or test override) and produce failed — do not pretend success.
         raise HTTPException(
             status_code=502,
             detail="Failed to publish interaction event",
         ) from None
+    apply_interaction(event)
     return {"status": "ok"}
 
 

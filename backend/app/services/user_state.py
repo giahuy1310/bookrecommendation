@@ -5,6 +5,9 @@ Value JSON: `{ "isbn": str, "createdAtMs": int | null }`
 
 In-memory fallback uses a lock so check-then-write is atomic within a process.
 Redis path uses WATCH/MULTI compare-and-set so API and worker share ordering.
+
+In-memory is used only when REDIS_URL is absent. If REDIS_URL is set,
+connection and operation errors propagate (no silent memory fallback).
 """
 
 from __future__ import annotations
@@ -20,22 +23,24 @@ _created_at_by_user: Dict[int, int] = {}
 _redis_client = None
 
 
+def _redis_configured() -> bool:
+    return bool(os.getenv("REDIS_URL"))
+
+
 def _get_redis():
+    """Return a Redis client when REDIS_URL is set; errors propagate."""
     global _redis_client
-    if _redis_client is not None:
-        return _redis_client if _redis_client is not False else None
     url = os.getenv("REDIS_URL")
     if not url:
         return None
-    try:
-        import redis
-
-        _redis_client = redis.from_url(url)
-        _redis_client.ping()
+    if _redis_client is not None:
         return _redis_client
-    except Exception:
-        _redis_client = False  # type: ignore
-        return None
+    import redis
+
+    client = redis.from_url(url)
+    client.ping()
+    _redis_client = client
+    return _redis_client
 
 
 def _key(user_id: int) -> str:
@@ -76,8 +81,7 @@ def set_context_isbn(
     created_at_ms: Optional[int] = None,
 ) -> bool:
     """Set latest context ISBN. Returns False if the event is stale (ignored)."""
-    client = _get_redis()
-    if client:
+    if _redis_configured():
         ok = _set_context_redis(user_id, isbn, created_at_ms)
         if ok:
             with _lock:
@@ -97,22 +101,26 @@ def set_context_isbn(
 
 
 def get_context_isbn(user_id: int) -> Optional[str]:
-    client = _get_redis()
-    if client:
+    if _redis_configured():
+        client = _get_redis()
+        assert client is not None
         raw = client.get(_key(user_id))
         if raw:
             return json.loads(raw).get("isbn")
+        return None
     with _lock:
         return _context_by_user.get(user_id)
 
 
 def get_context(user_id: int) -> Tuple[Optional[str], Optional[int]]:
-    client = _get_redis()
-    if client:
+    if _redis_configured():
+        client = _get_redis()
+        assert client is not None
         raw = client.get(_key(user_id))
         if raw:
             data = json.loads(raw)
             return data.get("isbn"), data.get("createdAtMs")
+        return None, None
     with _lock:
         return _context_by_user.get(user_id), _created_at_by_user.get(user_id)
 

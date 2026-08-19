@@ -11,6 +11,8 @@ from app.schemas import InteractionEvent
 
 logger = logging.getLogger(__name__)
 
+_SEND_TIMEOUT_S = 10
+
 _producer_override: Optional[Callable[[InteractionEvent], None]] = None
 
 
@@ -35,11 +37,13 @@ def produce_interaction(event: InteractionEvent) -> None:
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
         )
         # Key by userId so a user's events share a partition (ordering).
-        producer.send(
+        future = producer.send(
             TOPIC_USER_INTERACTIONS,
             key=str(event.userId),
             value=event.model_dump(),
         )
+        # Await broker ack so delivery errors propagate (do not discard the future).
+        future.get(timeout=_SEND_TIMEOUT_S)
         producer.flush()
         producer.close()
     except Exception:

@@ -2,10 +2,17 @@
 
 from __future__ import annotations
 
+import hashlib
 import random
 from typing import Any, Dict, List
 
 from app.schemas import Pick
+
+
+def _stable_seed(user_id: int, context_isbn: str) -> int:
+    """Process-stable integer seed from userId:contextIsbn (not salted hash())."""
+    digest = hashlib.sha256(f"{user_id}:{context_isbn}".encode("utf-8")).hexdigest()
+    return int(digest[:16], 16)
 
 
 def generate_stub_picks(
@@ -13,7 +20,7 @@ def generate_stub_picks(
     context_isbn: str,
     books: List[Dict[str, Any]],
 ) -> List[Pick]:
-    """Seed = hash(f\"{userId}:{contextIsbn}\"); pick 30-40 books excluding context ISBN.
+    """Seed from sha256(f\"{userId}:{contextIsbn}\"); pick 30-40 books excluding context ISBN.
 
     finalScore = (i + 1) * 0.01
     """
@@ -21,7 +28,7 @@ def generate_stub_picks(
     if not candidates:
         return []
 
-    seed = hash(f"{user_id}:{context_isbn}")
+    seed = _stable_seed(user_id, context_isbn)
     rng = random.Random(seed)
     count = min(len(candidates), rng.randint(30, 40))
     chosen = rng.sample(candidates, count)

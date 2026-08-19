@@ -6,6 +6,7 @@ COPY requirements.txt .
 RUN pip install --no-cache-dir -r requirements.txt
 
 COPY app ./app
+COPY model ./model
 
 # Mount host data at /data (e.g. data.zip and/or Books.csv).
 # Extraction looks for /data/data.zip → /data/Books.csv (not /data.zip at /).

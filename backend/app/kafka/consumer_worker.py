@@ -1,7 +1,4 @@
-"""Kafka consumer worker: apply stub recommendations into top-picks store.
-
-Does not need to run during tests. Ready for a later real-model swap.
-"""
+"""Kafka consumer worker: update top picks from stub or exported ALS artifacts."""
 
 from __future__ import annotations
 
@@ -15,12 +12,33 @@ from app.schemas import InteractionEvent
 from app.services import books_search, user_lists, user_state
 from app.services.recommendations_stub import generate_stub_picks
 from app.services.top_picks_store import set_top_picks
+from model import als_inference, model_config
 
 logger = logging.getLogger(__name__)
 
 
+def _generate_picks(user_id: int, context_isbn: str) -> list[Dict[str, Any]]:
+    if model_config.MODEL_MODE == "real":
+        try:
+            return als_inference.get_picks(user_id, context_isbn, num=30)
+        except Exception as exc:
+            logger.warning(
+                "Real model inference failed for userId=%s contextIsbn=%s; "
+                "falling back to stub: %s",
+                user_id,
+                context_isbn,
+                exc,
+            )
+
+    books = books_search.get_catalog()
+    return [
+        pick.model_dump()
+        for pick in generate_stub_picks(user_id, context_isbn, books)
+    ]
+
+
 def apply_interaction(event: InteractionEvent) -> bool:
-    """Set context ISBN, generate stub picks, write to store (same path as POST).
+    """Set context ISBN, generate picks, and write to store (same path as POST).
 
     Stale events (older createdAtMs) skip context/top-picks updates but still
     append to collection/cart for ADD_TO_* types. Returns False when
@@ -39,12 +57,11 @@ def apply_interaction(event: InteractionEvent) -> bool:
             event.isbn,
         )
         return False
-    books = books_search.get_catalog()
-    picks = generate_stub_picks(event.userId, event.isbn, books)
+    picks = _generate_picks(event.userId, event.isbn)
     set_top_picks(
         event.userId,
         event.isbn,
-        [p.model_dump() for p in picks],
+        picks,
         created_at_ms=event.createdAtMs,
     )
     return True

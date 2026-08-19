@@ -1,4 +1,4 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.kafka.producer import produce_interaction
 from app.kafka.consumer_worker import apply_interaction
@@ -18,7 +18,14 @@ def top_picks(userId: int):
 def post_interaction(event: InteractionEvent):
     # Persist context + stub picks immediately so GET right after POST works.
     apply_interaction(event)
-    produce_interaction(event)
+    try:
+        produce_interaction(event)
+    except Exception:
+        # Kafka configured (or test override) and produce failed — do not pretend success.
+        raise HTTPException(
+            status_code=502,
+            detail="Failed to publish interaction event",
+        ) from None
     return {"status": "ok"}
 
 

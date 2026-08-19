@@ -1,7 +1,12 @@
+import zipfile
+
 import pytest
 from fastapi.testclient import TestClient
 
+from app.kafka import producer as kafka_producer
+from app.kafka.consumer_worker import apply_interaction
 from app.main import app
+from app.schemas import InteractionEvent
 from app.services import books_search, top_picks_store, user_state
 
 
@@ -36,10 +41,12 @@ def reset_state():
     top_picks_store.clear()
     user_state.clear()
     books_search.set_catalog(SAMPLE_BOOKS)
+    kafka_producer.set_producer(None)
     yield
     top_picks_store.clear()
     user_state.clear()
     books_search.reset_catalog()
+    kafka_producer.set_producer(None)
 
 
 def test_get_top_picks_returns_empty_when_no_state_yet():
@@ -94,3 +101,68 @@ def test_search_returns_matches_for_known_title():
     assert isinstance(data, list)
     assert len(data) >= 1
     assert any("harry potter" in row["title"].lower() for row in data)
+
+
+def test_post_interaction_returns_502_when_kafka_produce_fails():
+    def boom(_event):
+        raise RuntimeError("broker down")
+
+    kafka_producer.set_producer(boom)
+    client = TestClient(app)
+    payload = {
+        "userId": 7,
+        "isbn": "ISBN0002",
+        "eventType": "READ",
+        "createdAtMs": 100,
+    }
+    resp = client.post("/api/interactions", json=payload)
+    assert resp.status_code == 502
+
+
+def test_stale_interaction_does_not_overwrite_newer_context():
+    newer = InteractionEvent(
+        userId=9,
+        isbn="ISBN0005",
+        eventType="READ",
+        createdAtMs=2_000,
+    )
+    older = InteractionEvent(
+        userId=9,
+        isbn="ISBN0001",
+        eventType="ADD_TO_CART",
+        createdAtMs=1_000,
+    )
+    assert apply_interaction(newer) is True
+    assert apply_interaction(older) is False
+
+    data = top_picks_store.get_top_picks(9)
+    assert data["contextIsbn"] == "ISBN0005"
+    assert user_state.get_context_isbn(9) == "ISBN0005"
+
+
+def test_search_extracts_books_csv_from_data_zip(tmp_path, monkeypatch):
+    """Exercise extract-if-missing via a tiny data.zip (not the full catalog)."""
+    books_search.reset_catalog()
+
+    csv_body = (
+        "ISBN,Book-Title,Book-Author,Year-Of-Publication,Publisher,"
+        "Image-URL-S,Image-URL-M,Image-URL-L\n"
+        "0316666343,The Lovely Bones,Alice Sebold,2002,Little Brown,,,\n"
+    )
+    zip_path = tmp_path / "data.zip"
+    with zipfile.ZipFile(zip_path, "w") as zf:
+        zf.writestr("Books.csv", csv_body)
+
+    monkeypatch.setenv("DATA_DIR", str(tmp_path))
+    monkeypatch.delenv("BOOKS_CSV_PATH", raising=False)
+    monkeypatch.delenv("DATA_ZIP_PATH", raising=False)
+
+    assert not (tmp_path / "Books.csv").exists()
+
+    client = TestClient(app)
+    resp = client.get("/api/search", params={"q": "Lovely", "limit": 5})
+    assert resp.status_code == 200
+    data = resp.json()
+    assert len(data) >= 1
+    assert any("lovely bones" in row["title"].lower() for row in data)
+    assert (tmp_path / "Books.csv").exists()

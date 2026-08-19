@@ -6,6 +6,7 @@ Does not need to run during tests. Ready for a later real-model swap.
 from __future__ import annotations
 
 import json
+import logging
 import time
 from typing import Any, Dict
 
@@ -15,17 +16,32 @@ from app.services import books_search, user_state
 from app.services.recommendations_stub import generate_stub_picks
 from app.services.top_picks_store import set_top_picks
 
+logger = logging.getLogger(__name__)
 
-def apply_interaction(event: InteractionEvent) -> None:
-    """Set context ISBN, generate stub picks, write to store (same path as POST)."""
-    user_state.set_context_isbn(event.userId, event.isbn)
+
+def apply_interaction(event: InteractionEvent) -> bool:
+    """Set context ISBN, generate stub picks, write to store (same path as POST).
+
+    Ignores stale events whose createdAtMs is older than the latest applied for
+    that user. Returns False when ignored.
+    """
+    if not user_state.set_context_isbn(event.userId, event.isbn, event.createdAtMs):
+        logger.info(
+            "Ignoring stale interaction userId=%s createdAtMs=%s isbn=%s",
+            event.userId,
+            event.createdAtMs,
+            event.isbn,
+        )
+        return False
     books = books_search.get_catalog()
     picks = generate_stub_picks(event.userId, event.isbn, books)
     set_top_picks(
         event.userId,
         event.isbn,
         [p.model_dump() for p in picks],
+        created_at_ms=event.createdAtMs,
     )
+    return True
 
 
 def process_message(raw: Dict[str, Any]) -> None:

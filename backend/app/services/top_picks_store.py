@@ -1,7 +1,7 @@
 """Top picks store.
 
 Redis key (when Redis is configured): `top_picks:{userId}`
-Value JSON shape: `{ "contextIsbn": str | null, "picks": Pick[] }`
+Value JSON shape: `{ "contextIsbn": str | null, "picks": Pick[], "createdAtMs": int | null }`
 
 Default implementation is in-memory so tests need no live Redis.
 """
@@ -38,12 +38,37 @@ def _key(user_id: int) -> str:
     return f"top_picks:{user_id}"
 
 
-def set_top_picks(user_id: int, context_isbn: Optional[str], picks: List[Dict[str, Any]]) -> None:
-    payload = {"contextIsbn": context_isbn, "picks": picks}
+def set_top_picks(
+    user_id: int,
+    context_isbn: Optional[str],
+    picks: List[Dict[str, Any]],
+    created_at_ms: Optional[int] = None,
+) -> bool:
+    """Write top picks. Returns False if created_at_ms is older than stored (stale)."""
+    existing = _store.get(user_id)
     client = _get_redis()
+    if client and existing is None:
+        raw = client.get(_key(user_id))
+        if raw:
+            existing = json.loads(raw)
+
+    if (
+        created_at_ms is not None
+        and existing is not None
+        and existing.get("createdAtMs") is not None
+        and created_at_ms < existing["createdAtMs"]
+    ):
+        return False
+
+    payload: Dict[str, Any] = {
+        "contextIsbn": context_isbn,
+        "picks": picks,
+        "createdAtMs": created_at_ms,
+    }
     if client:
         client.set(_key(user_id), json.dumps(payload))
     _store[user_id] = payload
+    return True
 
 
 def get_top_picks(userId: int) -> Dict[str, Any]:

@@ -3,10 +3,13 @@
 from __future__ import annotations
 
 import json
+import logging
 from typing import Callable, Optional
 
 from app.kafka.client import TOPIC_USER_INTERACTIONS, kafka_bootstrap_servers, kafka_enabled
 from app.schemas import InteractionEvent
+
+logger = logging.getLogger(__name__)
 
 _producer_override: Optional[Callable[[InteractionEvent], None]] = None
 
@@ -28,11 +31,21 @@ def produce_interaction(event: InteractionEvent) -> None:
 
         producer = KafkaProducer(
             bootstrap_servers=kafka_bootstrap_servers(),
+            key_serializer=lambda k: k.encode("utf-8") if isinstance(k, str) else k,
             value_serializer=lambda v: json.dumps(v).encode("utf-8"),
         )
-        producer.send(TOPIC_USER_INTERACTIONS, event.model_dump())
+        # Key by userId so a user's events share a partition (ordering).
+        producer.send(
+            TOPIC_USER_INTERACTIONS,
+            key=str(event.userId),
+            value=event.model_dump(),
+        )
         producer.flush()
         producer.close()
     except Exception:
-        # Swallow broker errors so API stays fast; worker/retry is out of scope.
-        return
+        logger.exception(
+            "Failed to produce interaction event userId=%s isbn=%s",
+            event.userId,
+            event.isbn,
+        )
+        raise

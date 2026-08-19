@@ -23,15 +23,25 @@ export default function SearchHero({ onSelectBook }: Props) {
       return;
     }
 
+    let cancelled = false;
     setSearching(true);
     const handle = window.setTimeout(() => {
       searchBooks(q)
-        .then(setResults)
-        .catch(() => setResults([]))
-        .finally(() => setSearching(false));
+        .then((books) => {
+          if (!cancelled) setResults(books);
+        })
+        .catch(() => {
+          if (!cancelled) setResults([]);
+        })
+        .finally(() => {
+          if (!cancelled) setSearching(false);
+        });
     }, 300);
 
-    return () => window.clearTimeout(handle);
+    return () => {
+      cancelled = true;
+      window.clearTimeout(handle);
+    };
   }, [query]);
 
   async function handleSelect(book: BookRow) {

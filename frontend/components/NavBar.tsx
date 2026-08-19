@@ -3,15 +3,15 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useEffect, useState } from "react";
-import { getUserId } from "../lib/auth";
+import { getUserId, isLoggedIn } from "../lib/auth";
 
 export default function NavBar() {
   const pathname = usePathname();
-  const [userId, setUserId] = useState<number | null>(null);
+  const [loggedIn, setLoggedIn] = useState(false);
   const [ready, setReady] = useState(false);
 
   useEffect(() => {
-    setUserId(getUserId());
+    setLoggedIn(isLoggedIn() && getUserId() != null);
     setReady(true);
   }, [pathname]);
 
@@ -31,8 +31,6 @@ export default function NavBar() {
       </nav>
     );
   }
-
-  const loggedIn = userId != null;
 
   return (
     <nav

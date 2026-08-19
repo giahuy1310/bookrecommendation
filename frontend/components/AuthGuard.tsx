@@ -2,7 +2,7 @@
 
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
-import { getUserId } from "../lib/auth";
+import { isLoggedIn } from "../lib/auth";
 
 type AuthGuardProps = {
   requireAuth: boolean;
@@ -19,7 +19,7 @@ export default function AuthGuard({
   const [allowed, setAllowed] = useState(false);
 
   useEffect(() => {
-    const loggedIn = getUserId() != null;
+    const loggedIn = isLoggedIn();
 
     if (requireAuth && !loggedIn) {
       router.replace(redirectTo);

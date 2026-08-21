@@ -24,7 +24,19 @@ export default function ProfilePage() {
       <section>
         <h1>User profile</h1>
         <p>User id: {userId ?? "—"}</p>
-        <button type="button" onClick={handleLogout}>
+        <button
+          type="button"
+          onClick={handleLogout}
+          style={{
+            padding: "8px 14px",
+            borderRadius: 8,
+            border: "1px solid var(--palette-blue)",
+            background: "var(--palette-blue)",
+            color: "var(--color-text)",
+            cursor: "pointer",
+            fontFamily: "inherit",
+          }}
+        >
           Log out
         </button>
       </section>

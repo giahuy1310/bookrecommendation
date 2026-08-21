@@ -1,11 +1,17 @@
+:root {
+  --palette-blue: #7AA1D2;
+  --palette-tan: #DBD4B4;
+  --palette-pink: #CC95C0;
+  --color-bg: #ffffff;
+  --color-text: #1a1a1a;
+}
+
 body {
-  background: #CC95C0;
-  background: -webkit-linear-gradient(to right, #7AA1D2, #DBD4B4, #CC95C0);
-  background: linear-gradient(to right, #7AA1D2, #DBD4B4, #CC95C0);
+  background: var(--color-bg);
   min-height: 100vh;
   margin: 0;
   font-family: Georgia, "Times New Roman", serif;
-  color: #1a1a1a;
+  color: var(--color-text);
 }
 
 * {
@@ -18,6 +24,7 @@ a {
 }
 
 a:hover {
+  color: var(--palette-pink);
   text-decoration: underline;
 }
 

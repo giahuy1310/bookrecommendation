@@ -1,8 +1,8 @@
 "use client";
 
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
+import Link from "next/link";
 import HorizontalPicksRow from "./HorizontalPicksRow";
-import BookCard from "./BookCard";
 import { fetchTopPicks, type Pick } from "../lib/api";
 
 type Props = {
@@ -23,7 +23,6 @@ export default function TopPicksSection({
   refreshKey = 0,
 }: Props) {
   const [internalPicks, setInternalPicks] = useState<Pick[]>([]);
-  const expandedRef = useRef<HTMLDivElement>(null);
 
   const picks = controlledPicks ?? internalPicks;
 
@@ -59,8 +58,6 @@ export default function TopPicksSection({
     return null;
   }
 
-  const showArrow = picks.length > 15;
-
   return (
     <section style={{ marginTop: 24 }}>
       <h2 style={{ marginBottom: 12 }}>Top picks for you</h2>
@@ -72,53 +69,27 @@ export default function TopPicksSection({
             onAddToCart={onAddToCart}
           />
         </div>
-        {showArrow ? (
-          <button
-            type="button"
-            aria-label="Show all top picks"
-            onClick={() =>
-              expandedRef.current?.scrollIntoView({ behavior: "smooth" })
-            }
+        {picks.length > 0 ? (
+          <Link
+            href="/top-picks"
+            aria-label="See all top picks"
             style={{
               flexShrink: 0,
-              width: 40,
-              height: 40,
+              padding: "8px 12px",
               borderRadius: 8,
-              border: "1px solid #333",
-              background: "rgba(255,255,255,0.7)",
+              border: "1px solid var(--palette-blue)",
+              background: "var(--palette-blue)",
+              color: "var(--color-text)",
               cursor: "pointer",
-              fontSize: 20,
+              fontSize: 14,
+              fontFamily: "inherit",
+              textDecoration: "none",
             }}
           >
-            →
-          </button>
+            See all
+          </Link>
         ) : null}
       </div>
-      {showArrow ? (
-        <div ref={expandedRef} style={{ marginTop: 32 }}>
-          <h3 style={{ marginBottom: 12 }}>Top picks for you</h3>
-          <div
-            style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-              gap: 12,
-            }}
-          >
-            {picks.map((p) => (
-              <BookCard
-                key={`expanded-${p.isbn}`}
-                pick={p}
-                onAddToCollection={
-                  onAddToCollection
-                    ? () => onAddToCollection(p)
-                    : undefined
-                }
-                onAddToCart={onAddToCart ? () => onAddToCart(p) : undefined}
-              />
-            ))}
-          </div>
-        </div>
-      ) : null}
     </section>
   );
 }

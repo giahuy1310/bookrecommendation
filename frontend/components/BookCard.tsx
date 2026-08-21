@@ -21,7 +21,16 @@ export default function BookCard({
   onAddToCart,
 }: Props) {
   return (
-    <div data-testid="book-card" style={{ minWidth: 180 }}>
+    <div
+      data-testid="book-card"
+      style={{
+        minWidth: 180,
+        padding: 12,
+        borderRadius: 10,
+        background: "color-mix(in srgb, var(--palette-tan) 28%, white)",
+        border: "1px solid var(--palette-tan)",
+      }}
+    >
       <div style={{ fontWeight: 700 }}>{pick.title}</div>
       <div style={{ opacity: 0.8, fontSize: 12 }}>{pick.author}</div>
       {(onAddToCollection || onAddToCart) && (
@@ -34,8 +43,9 @@ export default function BookCard({
                 fontSize: 11,
                 padding: "4px 8px",
                 borderRadius: 6,
-                border: "1px solid #444",
-                background: "rgba(255,255,255,0.8)",
+                border: "1px solid var(--palette-pink)",
+                background: "var(--palette-pink)",
+                color: "var(--color-text)",
                 cursor: "pointer",
                 fontFamily: "inherit",
               }}
@@ -51,8 +61,9 @@ export default function BookCard({
                 fontSize: 11,
                 padding: "4px 8px",
                 borderRadius: 6,
-                border: "1px solid #444",
-                background: "rgba(255,255,255,0.8)",
+                border: "1px solid var(--palette-blue)",
+                background: "var(--palette-blue)",
+                color: "var(--color-text)",
                 cursor: "pointer",
                 fontFamily: "inherit",
               }}

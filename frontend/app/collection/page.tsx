@@ -31,7 +31,7 @@ function CollectionContents() {
               style={{
                 marginBottom: 12,
                 padding: "12px 0",
-                borderBottom: "1px solid rgba(0,0,0,0.12)",
+                borderBottom: "1px solid var(--palette-tan)",
               }}
             >
               <div style={{ fontWeight: 700 }}>{book.title}</div>

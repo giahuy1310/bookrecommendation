@@ -61,9 +61,9 @@ export default function SearchHero({ onSelectBook }: Props) {
         margin: "24px 0 32px",
         padding: "28px 24px",
         borderRadius: 20,
-        background: "rgba(255, 255, 255, 0.55)",
-        border: "1px solid rgba(0,0,0,0.08)",
-        boxShadow: "0 8px 24px rgba(0,0,0,0.08)",
+        background: "color-mix(in srgb, var(--palette-blue) 18%, white)",
+        border: "1px solid var(--palette-tan)",
+        boxShadow: "0 8px 24px color-mix(in srgb, var(--palette-blue) 20%, transparent)",
       }}
     >
       <h1 style={{ fontSize: "2rem", margin: "0 0 16px", fontWeight: 700 }}>
@@ -83,7 +83,7 @@ export default function SearchHero({ onSelectBook }: Props) {
             padding: "14px 16px",
             fontSize: 16,
             borderRadius: 12,
-            border: "1px solid #888",
+            border: "1px solid var(--palette-tan)",
             fontFamily: "inherit",
           }}
         />
@@ -112,8 +112,8 @@ export default function SearchHero({ onSelectBook }: Props) {
                   textAlign: "left",
                   padding: "12px 14px",
                   borderRadius: 10,
-                  border: "1px solid rgba(0,0,0,0.12)",
-                  background: "rgba(255,255,255,0.85)",
+                  border: "1px solid var(--palette-tan)",
+                  background: "color-mix(in srgb, var(--palette-tan) 35%, white)",
                   cursor: "pointer",
                   fontFamily: "inherit",
                 }}

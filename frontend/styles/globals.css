@@ -1,35 +1,54 @@
-:root {
-  --palette-blue: #7AA1D2;
-  --palette-tan: #DBD4B4;
-  --palette-pink: #CC95C0;
-  --color-bg: #ffffff;
-  --color-text: #1a1a1a;
+/* App-level overrides — Bookly + Bootstrap own most styling */
+html {
+  scroll-behavior: smooth;
 }
 
-body {
-  background: var(--color-bg);
-  min-height: 100vh;
-  margin: 0;
-  font-family: Georgia, "Times New Roman", serif;
-  color: var(--color-text);
+main.site-main {
+  min-height: 50vh;
 }
 
-* {
-  box-sizing: border-box;
+/* Inline search (Bookly search-form patterns without popup overlay) */
+#search-hero .search-form {
+  position: relative;
 }
 
-a {
-  color: inherit;
-  text-decoration: none;
+#search-hero .search-field {
+  padding-right: 3.5rem;
 }
 
-a:hover {
-  color: var(--palette-pink);
-  text-decoration: underline;
+#search-hero .search-submit {
+  position: absolute;
+  top: 50%;
+  right: 0.75rem;
+  transform: translateY(-50%);
+  border: 0;
+  background: transparent;
+  padding: 0.25rem;
+  line-height: 0;
 }
 
-main {
-  padding: 24px;
-  max-width: 1100px;
-  margin: 0 auto;
+#search-hero .search-submit svg {
+  width: 1.5rem;
+  height: 1.5rem;
+}
+
+.search-hero-results {
+  list-style: none;
+  margin: 1rem 0 0;
+  padding: 0;
+}
+
+.search-hero-results li + li {
+  margin-top: 0.5rem;
+}
+
+.book-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 1.25rem;
+}
+
+.inner-page {
+  padding-top: 2rem;
+  padding-bottom: 3rem;
 }

@@ -21,24 +21,26 @@ export default function ProfilePage() {
 
   return (
     <AuthGuard requireAuth redirectTo="/login">
-      <section>
-        <h1>User profile</h1>
-        <p>User id: {userId ?? "—"}</p>
-        <button
-          type="button"
-          onClick={handleLogout}
-          style={{
-            padding: "8px 14px",
-            borderRadius: 8,
-            border: "1px solid var(--palette-blue)",
-            background: "var(--palette-blue)",
-            color: "var(--color-text)",
-            cursor: "pointer",
-            fontFamily: "inherit",
-          }}
-        >
-          Log out
-        </button>
+      <section className="inner-page padding-large">
+        <div className="container">
+          <div className="row justify-content-center">
+            <div className="col-md-6 col-lg-5">
+              <div className="card border rounded-3 p-4 p-md-5">
+                <h1 className="mb-3">User profile</h1>
+                <p className="mb-4">
+                  User id: <span className="fw-bold">{userId ?? "—"}</span>
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-dark w-100"
+                  onClick={handleLogout}
+                >
+                  Log out
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
     </AuthGuard>
   );

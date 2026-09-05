@@ -15,6 +15,15 @@ type Props = {
   onAddToCart?: () => void;
 };
 
+function coverForIsbn(isbn: string) {
+  let hash = 0;
+  for (let i = 0; i < isbn.length; i++) {
+    hash = (hash + isbn.charCodeAt(i) * (i + 1)) % 12;
+  }
+  const n = (hash % 12) + 1;
+  return `/bookly/product-item${n}.png`;
+}
+
 export default function BookCard({
   pick,
   onAddToCollection,
@@ -23,52 +32,46 @@ export default function BookCard({
   return (
     <div
       data-testid="book-card"
-      style={{
-        minWidth: 180,
-        padding: 12,
-        borderRadius: 10,
-        background: "color-mix(in srgb, var(--palette-tan) 28%, white)",
-        border: "1px solid var(--palette-tan)",
-      }}
+      className="card position-relative p-4 border rounded-3 h-100"
     >
-      <div style={{ fontWeight: 700 }}>{pick.title}</div>
-      <div style={{ opacity: 0.8, fontSize: 12 }}>{pick.author}</div>
+      {/* eslint-disable-next-line @next/next/no-img-element */}
+      <img
+        src={coverForIsbn(pick.isbn)}
+        className="img-fluid shadow-sm"
+        alt=""
+      />
+      <h6 className="mt-4 mb-0 fw-bold">{pick.title}</h6>
+      <div className="review-content d-flex">
+        <p className="my-2 me-2 fs-6 text-black-50 mb-0">{pick.author}</p>
+      </div>
       {(onAddToCollection || onAddToCart) && (
-        <div style={{ display: "flex", gap: 6, marginTop: 8, flexWrap: "wrap" }}>
-          {onAddToCollection ? (
-            <button
-              type="button"
-              onClick={onAddToCollection}
-              style={{
-                fontSize: 11,
-                padding: "4px 8px",
-                borderRadius: 6,
-                border: "1px solid var(--palette-pink)",
-                background: "var(--palette-pink)",
-                color: "var(--color-text)",
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
-            >
-              Add to collection
-            </button>
-          ) : null}
+        <div className="card-concern position-absolute start-0 end-0 d-flex gap-2">
           {onAddToCart ? (
             <button
               type="button"
+              className="btn btn-dark"
               onClick={onAddToCart}
-              style={{
-                fontSize: 11,
-                padding: "4px 8px",
-                borderRadius: 6,
-                border: "1px solid var(--palette-blue)",
-                background: "var(--palette-blue)",
-                color: "var(--color-text)",
-                cursor: "pointer",
-                fontFamily: "inherit",
-              }}
+              aria-label="Add to cart"
+              title="Add to cart"
             >
-              Add to cart
+              <svg className="cart">
+                <use xlinkHref="#cart" />
+              </svg>
+              <span className="visually-hidden">Add to cart</span>
+            </button>
+          ) : null}
+          {onAddToCollection ? (
+            <button
+              type="button"
+              className="btn btn-dark"
+              onClick={onAddToCollection}
+              aria-label="Add to collection"
+              title="Add to collection"
+            >
+              <svg className="wishlist">
+                <use xlinkHref="#heart" />
+              </svg>
+              <span className="visually-hidden">Add to collection</span>
             </button>
           ) : null}
         </div>

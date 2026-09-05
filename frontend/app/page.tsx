@@ -1,6 +1,8 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import Billboard from "../components/Billboard";
+import CompanyServices from "../components/CompanyServices";
 import SearchHero from "../components/SearchHero";
 import TopPicksSection from "../components/TopPicksSection";
 import {
@@ -53,6 +55,8 @@ export default function HomePage() {
 
   return (
     <>
+      <Billboard />
+      <CompanyServices />
       <SearchHero onSelectBook={handleSelectBook} />
       {ready && userId != null ? (
         <TopPicksSection

@@ -56,75 +56,57 @@ export default function SearchHero({ onSelectBook }: Props) {
   }
 
   return (
-    <section
-      style={{
-        margin: "24px 0 32px",
-        padding: "28px 24px",
-        borderRadius: 20,
-        background: "color-mix(in srgb, var(--palette-blue) 18%, white)",
-        border: "1px solid var(--palette-tan)",
-        boxShadow: "0 8px 24px color-mix(in srgb, var(--palette-blue) 20%, transparent)",
-      }}
-    >
-      <h1 style={{ fontSize: "2rem", margin: "0 0 16px", fontWeight: 700 }}>
-        what do you like to read today?
-      </h1>
-      <label style={{ display: "block" }}>
-        <span style={{ position: "absolute", width: 1, height: 1, overflow: "hidden", clip: "rect(0 0 0 0)" }}>
-          Search books
-        </span>
-        <input
-          type="search"
-          value={query}
-          onChange={(e) => setQuery(e.target.value)}
-          placeholder="Search by title or author"
-          style={{
-            width: "100%",
-            padding: "14px 16px",
-            fontSize: 16,
-            borderRadius: 12,
-            border: "1px solid var(--palette-tan)",
-            fontFamily: "inherit",
-          }}
-        />
-      </label>
-      {searching ? (
-        <p style={{ marginTop: 12, opacity: 0.7 }}>Searching…</p>
-      ) : null}
-      {results.length > 0 ? (
-        <ul
-          style={{
-            listStyle: "none",
-            margin: "16px 0 0",
-            padding: 0,
-            display: "flex",
-            flexDirection: "column",
-            gap: 8,
-          }}
+    <section id="search-hero" className="padding-large pb-0">
+      <div className="container">
+        <div className="section-title mb-4 text-center text-md-start">
+          <h3 className="mb-2">What do you like to read today?</h3>
+          <p className="mb-0 text-black-50">
+            Search by title or author to start a reading interaction.
+          </p>
+        </div>
+        <form
+          role="search"
+          className="search-form position-relative"
+          onSubmit={(e) => e.preventDefault()}
         >
-          {results.map((book) => (
-            <li key={book.isbn}>
-              <button
-                type="button"
-                onClick={() => handleSelect(book)}
-                style={{
-                  width: "100%",
-                  textAlign: "left",
-                  padding: "12px 14px",
-                  borderRadius: 10,
-                  border: "1px solid var(--palette-tan)",
-                  background: "color-mix(in srgb, var(--palette-tan) 35%, white)",
-                  cursor: "pointer",
-                  fontFamily: "inherit",
-                }}
-              >
-                <div style={{ fontWeight: 700 }}>{book.title}</div>
-                <div style={{ fontSize: 13, opacity: 0.8 }}>{book.author}</div>
-              </button>
-            </li>
-          ))}
-        </ul>
-      ) : null}
+          <label className="visually-hidden" htmlFor="search-form">
+            Search books
+          </label>
+          <input
+            type="search"
+            id="search-form"
+            className="search-field form-control form-control-lg rounded-3"
+            placeholder="Search by title or author"
+            value={query}
+            onChange={(e) => setQuery(e.target.value)}
+            name="s"
+          />
+          <button type="submit" className="search-submit" aria-label="Search">
+            <svg className="search">
+              <use xlinkHref="#search" />
+            </svg>
+          </button>
+        </form>
+        {searching ? (
+          <p className="mt-3 text-black-50">Searching…</p>
+        ) : null}
+        {results.length > 0 ? (
+          <ul className="search-hero-results mt-3">
+            {results.map((book) => (
+              <li key={book.isbn}>
+                <button
+                  type="button"
+                  className="btn btn-light w-100 text-start border rounded-3 p-3"
+                  onClick={() => handleSelect(book)}
+                >
+                  <div className="fw-bold">{book.title}</div>
+                  <div className="fs-6 text-black-50">{book.author}</div>
+                </button>
+              </li>
+            ))}
+          </ul>
+        ) : null}
+      </div>
     </section>
   );
 }

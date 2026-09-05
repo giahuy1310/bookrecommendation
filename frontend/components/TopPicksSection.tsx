@@ -59,36 +59,21 @@ export default function TopPicksSection({
   }
 
   return (
-    <section style={{ marginTop: 24 }}>
-      <h2 style={{ marginBottom: 12 }}>Top picks for you</h2>
-      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <HorizontalPicksRow
-            picks={picks}
-            onAddToCollection={onAddToCollection}
-            onAddToCart={onAddToCart}
-          />
+    <section id="best-selling-items" className="position-relative padding-large">
+      <div className="container">
+        <div className="section-title d-md-flex justify-content-between align-items-center mb-4">
+          <h3 className="d-flex align-items-center">Top picks for you</h3>
+          {picks.length > 0 ? (
+            <Link href="/top-picks" className="btn" aria-label="See all top picks">
+              See all
+            </Link>
+          ) : null}
         </div>
-        {picks.length > 0 ? (
-          <Link
-            href="/top-picks"
-            aria-label="See all top picks"
-            style={{
-              flexShrink: 0,
-              padding: "8px 12px",
-              borderRadius: 8,
-              border: "1px solid var(--palette-blue)",
-              background: "var(--palette-blue)",
-              color: "var(--color-text)",
-              cursor: "pointer",
-              fontSize: 14,
-              fontFamily: "inherit",
-              textDecoration: "none",
-            }}
-          >
-            See all
-          </Link>
-        ) : null}
+        <HorizontalPicksRow
+          picks={picks}
+          onAddToCollection={onAddToCollection}
+          onAddToCart={onAddToCart}
+        />
       </div>
     </section>
   );

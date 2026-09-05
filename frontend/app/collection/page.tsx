@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import AuthGuard from "../../components/AuthGuard";
+import BookCard from "../../components/BookCard";
 import { getCollection, type BookRow } from "../../lib/api";
 import { getUserId } from "../../lib/auth";
 
@@ -18,28 +19,25 @@ function CollectionContents() {
   }, []);
 
   return (
-    <section>
-      <h1>My collection</h1>
-      {error ? <p>{error}</p> : null}
-      {items.length === 0 && !error ? (
-        <p>Your saved books will appear here.</p>
-      ) : (
-        <ul style={{ listStyle: "none", padding: 0, marginTop: 16 }}>
-          {items.map((book) => (
-            <li
-              key={book.isbn}
-              style={{
-                marginBottom: 12,
-                padding: "12px 0",
-                borderBottom: "1px solid var(--palette-tan)",
-              }}
-            >
-              <div style={{ fontWeight: 700 }}>{book.title}</div>
-              <div style={{ fontSize: 13, opacity: 0.8 }}>{book.author}</div>
-            </li>
-          ))}
-        </ul>
-      )}
+    <section className="inner-page padding-large">
+      <div className="container">
+        <div className="section-title mb-4">
+          <h1 className="mb-2">My collection</h1>
+          <p className="text-black-50 mb-0">
+            Books you have saved to your collection.
+          </p>
+        </div>
+        {error ? <p className="text-danger">{error}</p> : null}
+        {items.length === 0 && !error ? (
+          <p>Your saved books will appear here.</p>
+        ) : (
+          <div className="book-grid">
+            {items.map((book) => (
+              <BookCard key={book.isbn} pick={book} />
+            ))}
+          </div>
+        )}
+      </div>
     </section>
   );
 }

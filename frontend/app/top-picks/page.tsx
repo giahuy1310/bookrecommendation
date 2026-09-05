@@ -48,27 +48,28 @@ function TopPicksContents() {
   }
 
   return (
-    <section>
-      <h1 style={{ marginBottom: 16 }}>Top picks for you</h1>
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(180px, 1fr))",
-          gap: 12,
-        }}
-      >
-        {picks.map((p) => (
-          <BookCard
-            key={p.isbn}
-            pick={p}
-            onAddToCollection={() => {
-              void sendInteraction(p.isbn, "ADD_TO_COLLECTION");
-            }}
-            onAddToCart={() => {
-              void sendInteraction(p.isbn, "ADD_TO_CART");
-            }}
-          />
-        ))}
+    <section className="inner-page padding-large">
+      <div className="container">
+        <div className="section-title mb-4">
+          <h1 className="mb-2">Top picks for you</h1>
+          <p className="text-black-50 mb-0">
+            Your full personalized recommendation list.
+          </p>
+        </div>
+        <div className="book-grid">
+          {picks.map((p) => (
+            <BookCard
+              key={p.isbn}
+              pick={p}
+              onAddToCollection={() => {
+                void sendInteraction(p.isbn, "ADD_TO_COLLECTION");
+              }}
+              onAddToCart={() => {
+                void sendInteraction(p.isbn, "ADD_TO_CART");
+              }}
+            />
+          ))}
+        </div>
       </div>
     </section>
   );

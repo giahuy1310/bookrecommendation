@@ -15,24 +15,26 @@ export default function LoginPage() {
 
   return (
     <AuthGuard requireAuth={false} redirectTo="/">
-      <section>
-        <h1>Log-in</h1>
-        <p>Create a local numeric user id stored in this browser.</p>
-        <button
-          type="button"
-          onClick={handleLogin}
-          style={{
-            padding: "8px 14px",
-            borderRadius: 8,
-            border: "1px solid var(--palette-blue)",
-            background: "var(--palette-blue)",
-            color: "var(--color-text)",
-            cursor: "pointer",
-            fontFamily: "inherit",
-          }}
-        >
-          Log-in
-        </button>
+      <section className="inner-page padding-large">
+        <div className="container">
+          <div className="row justify-content-center">
+            <div className="col-md-6 col-lg-5">
+              <div className="card border rounded-3 p-4 p-md-5">
+                <h1 className="mb-3">Log-in</h1>
+                <p className="text-black-50">
+                  Create a local numeric user id stored in this browser.
+                </p>
+                <button
+                  type="button"
+                  className="btn btn-dark w-100 my-3"
+                  onClick={handleLogin}
+                >
+                  Log-in
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
       </section>
     </AuthGuard>
   );

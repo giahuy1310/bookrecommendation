@@ -1,56 +1,25 @@
 """Top picks store.
 
-Redis keys (when Redis is configured):
-  - `top_picks:{userId}` — JSON `{ "contextIsbn": str | null, "picks": Pick[] }`
-  - `top_picks_meta:{userId}` — JSON `{ "createdAtMs": int | null }` for stale-event CAS
-
-Default implementation is in-memory so tests need no live Redis.
-Stale writes (older createdAtMs) are rejected atomically via a lock (memory)
-or Redis WATCH/MULTI compare-and-set (shared across API + worker).
+Postgres is the system of record. Tests set STORE_BACKEND=memory (no live DB).
+Stale writes (older createdAtMs) are rejected.
 """
 
 from __future__ import annotations
 
-import json
-import os
 import threading
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy import select
+
+from app.db.ensure import ensure_user
+from app.db.models import Book, BookStats, TopPicks
+from app.db.session import sync_session
+from app.services import interactions, user_state
+from app.services.store_mode import use_memory_stores
+
 _lock = threading.Lock()
 _store: Dict[int, Dict[str, Any]] = {}
-_redis_client = None
-
-
-def _redis_configured() -> bool:
-    return bool(os.getenv("REDIS_URL"))
-
-
-def _get_redis():
-    """Return a Redis client when REDIS_URL is set.
-
-    In-memory is used only when REDIS_URL is absent. If REDIS_URL is set,
-    connection and operation errors propagate (no silent memory fallback).
-    """
-    global _redis_client
-    url = os.getenv("REDIS_URL")
-    if not url:
-        return None
-    if _redis_client is not None:
-        return _redis_client
-    import redis
-
-    client = redis.from_url(url)
-    client.ping()
-    _redis_client = client
-    return _redis_client
-
-
-def _key(user_id: int) -> str:
-    return f"top_picks:{user_id}"
-
-
-def _meta_key(user_id: int) -> str:
-    return f"top_picks_meta:{user_id}"
+_popularity: List[Dict[str, Any]] = []
 
 
 def _is_stale(existing_created_at_ms: Optional[int], created_at_ms: Optional[int]) -> bool:
@@ -61,38 +30,31 @@ def _is_stale(existing_created_at_ms: Optional[int], created_at_ms: Optional[int
     )
 
 
-def _set_top_picks_redis(
-    user_id: int,
-    payload: Dict[str, Any],
-    created_at_ms: Optional[int],
-) -> bool:
-    """Atomic CAS on Redis: refuse if created_at_ms is older than stored meta."""
-    import redis as redis_lib
+def set_popularity(rows: List[Dict[str, Any]]) -> None:
+    """Test helper: in-memory book_stats rows (isbn, title, author, rating_count)."""
+    _popularity.clear()
+    _popularity.extend(rows)
 
-    client = _get_redis()
-    assert client is not None
-    picks_key = _key(user_id)
-    meta_key = _meta_key(user_id)
-    meta_payload = {"createdAtMs": created_at_ms}
 
-    with client.pipeline() as pipe:
-        while True:
-            try:
-                pipe.watch(meta_key, picks_key)
-                raw_meta = pipe.get(meta_key)
-                existing_ms = None
-                if raw_meta:
-                    existing_ms = json.loads(raw_meta).get("createdAtMs")
-                if _is_stale(existing_ms, created_at_ms):
-                    pipe.unwatch()
-                    return False
-                pipe.multi()
-                pipe.set(picks_key, json.dumps(payload))
-                pipe.set(meta_key, json.dumps(meta_payload))
-                pipe.execute()
-                return True
-            except redis_lib.WatchError:
-                continue
+def get_cached_picks(user_id: int) -> Optional[Dict[str, Any]]:
+    """Return stored top_picks or None (no cold-start / generate)."""
+    if use_memory_stores():
+        with _lock:
+            payload = _store.get(user_id)
+        if not payload or not payload.get("picks"):
+            return None
+        return {
+            "contextIsbn": payload.get("contextIsbn"),
+            "picks": payload.get("picks", []),
+        }
+    with sync_session() as session:
+        row = session.get(TopPicks, user_id)
+        if row is None or not row.picks:
+            return None
+        return {
+            "contextIsbn": row.context_isbn,
+            "picks": list(row.picks),
+        }
 
 
 def set_top_picks(
@@ -102,53 +64,104 @@ def set_top_picks(
     created_at_ms: Optional[int] = None,
 ) -> bool:
     """Write top picks. Returns False if created_at_ms is older than stored (stale)."""
-    # Redis value contract: exactly contextIsbn + picks (no createdAtMs).
     payload: Dict[str, Any] = {
         "contextIsbn": context_isbn,
         "picks": picks,
     }
+    if use_memory_stores():
+        with _lock:
+            existing = _store.get(user_id)
+            existing_ms = existing.get("createdAtMs") if existing else None
+            if _is_stale(existing_ms, created_at_ms):
+                return False
+            _store[user_id] = {**payload, "createdAtMs": created_at_ms}
+            return True
 
-    if _redis_configured():
-        ok = _set_top_picks_redis(user_id, payload, created_at_ms)
-        if ok:
-            with _lock:
-                _store[user_id] = {**payload, "createdAtMs": created_at_ms}
-        return ok
-
-    with _lock:
-        existing = _store.get(user_id)
-        existing_ms = existing.get("createdAtMs") if existing else None
+    with sync_session() as session:
+        ensure_user(session, user_id)
+        row = session.get(TopPicks, user_id)
+        existing_ms = row.created_at_ms if row is not None else None
         if _is_stale(existing_ms, created_at_ms):
             return False
-        _store[user_id] = {**payload, "createdAtMs": created_at_ms}
+        if row is None:
+            session.add(
+                TopPicks(
+                    user_id=user_id,
+                    context_isbn=context_isbn,
+                    picks=picks,
+                    created_at_ms=created_at_ms,
+                )
+            )
+        else:
+            row.context_isbn = context_isbn
+            row.picks = picks
+            row.created_at_ms = created_at_ms
         return True
 
 
 def get_top_picks(userId: int) -> Dict[str, Any]:
-    if _redis_configured():
-        client = _get_redis()
-        assert client is not None
-        raw = client.get(_key(userId))
-        if raw:
-            payload = json.loads(raw)
-            return {
-                "userId": userId,
-                "contextIsbn": payload.get("contextIsbn"),
-                "picks": payload.get("picks", []),
-            }
-        return {"userId": userId, "contextIsbn": None, "picks": []}
+    if interactions.count_for_user(userId) == 0:
+        return {
+            "userId": userId,
+            "contextIsbn": None,
+            "picks": _popularity_picks(limit=3),
+        }
 
-    with _lock:
-        payload = _store.get(userId)
-    if not payload:
-        return {"userId": userId, "contextIsbn": None, "picks": []}
-    return {
-        "userId": userId,
-        "contextIsbn": payload.get("contextIsbn"),
-        "picks": payload.get("picks", []),
-    }
+    cached = get_cached_picks(userId)
+    if cached is not None:
+        return {"userId": userId, **cached}
+
+    context = user_state.get_context_isbn(userId) or interactions.latest_isbn(userId)
+    if not context:
+        return {
+            "userId": userId,
+            "contextIsbn": None,
+            "picks": _popularity_picks(limit=3),
+        }
+
+    from app.kafka.consumer_worker import _generate_picks
+
+    picks = _generate_picks(userId, context)
+    set_top_picks(userId, context, picks)
+    return {"userId": userId, "contextIsbn": context, "picks": picks}
+
+
+def _popularity_picks(limit: int = 3) -> List[Dict[str, Any]]:
+    rows = _popularity_rows(limit)
+    return [
+        {
+            "isbn": row["isbn"],
+            "title": row["title"],
+            "author": row["author"],
+            "finalScore": float(limit - i),
+        }
+        for i, row in enumerate(rows)
+    ]
+
+
+def _popularity_rows(limit: int) -> List[Dict[str, Any]]:
+    if use_memory_stores():
+        ranked = sorted(
+            _popularity,
+            key=lambda row: (-int(row.get("rating_count") or 0), str(row.get("isbn", ""))),
+        )
+        return ranked[:limit]
+
+    with sync_session() as session:
+        stmt = (
+            select(Book.isbn, Book.title, Book.author, BookStats.rating_count)
+            .join(BookStats, BookStats.isbn == Book.isbn)
+            .order_by(BookStats.rating_count.desc(), Book.isbn.asc())
+            .limit(limit)
+        )
+        result = session.execute(stmt).all()
+    return [
+        {"isbn": row.isbn, "title": row.title, "author": row.author}
+        for row in result
+    ]
 
 
 def clear() -> None:
     with _lock:
         _store.clear()
+        _popularity.clear()

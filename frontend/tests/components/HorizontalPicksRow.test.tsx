@@ -1,7 +1,7 @@
 import { render, screen } from "@testing-library/react";
 import HorizontalPicksRow from "../../components/HorizontalPicksRow";
 
-test("renders at most 15 picks in the main row", () => {
+test("renders at most 3 picks in the main row", () => {
   const picks = Array.from({ length: 30 }).map((_, i) => ({
     isbn: `isbn-${i}`,
     title: `Title ${i}`,
@@ -11,5 +11,5 @@ test("renders at most 15 picks in the main row", () => {
 
   render(<HorizontalPicksRow picks={picks} />);
   const cards = screen.getAllByTestId("book-card");
-  expect(cards.length).toBeLessThanOrEqual(15);
+  expect(cards).toHaveLength(3);
 });

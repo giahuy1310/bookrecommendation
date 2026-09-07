@@ -14,6 +14,7 @@ class Pick(BaseModel):
     title: str
     author: str
     finalScore: float
+    coverUrl: Optional[str] = None
 
 
 class TopPicksResponse(BaseModel):
@@ -26,6 +27,7 @@ class BookRow(BaseModel):
     isbn: str
     title: str
     author: str
+    coverUrl: Optional[str] = None
 
 
 class UserListResponse(BaseModel):

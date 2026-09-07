@@ -8,7 +8,8 @@ from app.kafka import producer as kafka_producer
 from app.kafka.consumer_worker import apply_interaction
 from app.main import app
 from app.schemas import InteractionEvent
-from app.services import books_search, top_picks_store, user_lists, user_state
+from app.services import books_search, interactions, top_picks_store, user_lists, user_state
+from app.services import cover_resolver
 
 
 SAMPLE_BOOKS = [
@@ -38,16 +39,23 @@ SAMPLE_BOOKS = [
 
 
 @pytest.fixture(autouse=True)
-def reset_state():
+def reset_state(monkeypatch):
+    monkeypatch.setattr(
+        cover_resolver, "_open_library_has_cover", lambda isbn, timeout: False
+    )
     top_picks_store.clear()
     user_state.clear()
     user_lists.clear()
+    interactions.clear()
+    cover_resolver.clear()
     books_search.set_catalog(SAMPLE_BOOKS)
     kafka_producer.set_producer(None)
     yield
     top_picks_store.clear()
     user_state.clear()
     user_lists.clear()
+    interactions.clear()
+    cover_resolver.clear()
     books_search.reset_catalog()
     kafka_producer.set_producer(None)
 
@@ -104,6 +112,7 @@ def test_search_returns_matches_for_known_title():
     assert isinstance(data, list)
     assert len(data) >= 1
     assert any("harry potter" in row["title"].lower() for row in data)
+    assert "coverUrl" in data[0]
 
 
 def test_post_interaction_returns_502_when_kafka_produce_fails():
@@ -222,3 +231,152 @@ def test_search_extracts_books_csv_from_data_zip(tmp_path, monkeypatch):
     assert len(data) >= 1
     assert any("lovely bones" in row["title"].lower() for row in data)
     assert (tmp_path / "Books.csv").exists()
+
+
+def test_cold_start_returns_top_3_by_rating_count():
+    top_picks_store.set_popularity(
+        [
+            {
+                "isbn": "ISBN0001",
+                "title": "Title 1",
+                "author": "Author 1",
+                "rating_count": 10,
+            },
+            {
+                "isbn": "ISBN0008",
+                "title": "Title 8",
+                "author": "Author 8",
+                "rating_count": 80,
+            },
+            {
+                "isbn": "ISBN0003",
+                "title": "Title 3",
+                "author": "Author 3",
+                "rating_count": 50,
+            },
+            {
+                "isbn": "ISBN0005",
+                "title": "Title 5",
+                "author": "Author 5",
+                "rating_count": 40,
+            },
+        ]
+    )
+    client = TestClient(app)
+    resp = client.get("/api/top-picks?userId=123")
+    assert resp.status_code == 200
+    data = resp.json()
+    assert data["userId"] == 123
+    assert data["contextIsbn"] is None
+    assert [p["isbn"] for p in data["picks"]] == ["ISBN0008", "ISBN0003", "ISBN0005"]
+    assert [p["finalScore"] for p in data["picks"]] == [3.0, 2.0, 1.0]
+    assert data["picks"][0]["title"] == "Title 8"
+    assert data["picks"][0]["author"] == "Author 8"
+    assert "coverUrl" in data["picks"][0]
+
+
+def test_cold_start_empty_popularity_returns_no_picks():
+    top_picks_store.set_popularity([])
+    client = TestClient(app)
+    resp = client.get("/api/top-picks?userId=123")
+    assert resp.status_code == 200
+    assert resp.json()["picks"] == []
+
+
+def test_warm_user_returns_algorithm_picks_not_popularity():
+    top_picks_store.set_popularity(
+        [
+            {
+                "isbn": "HP0001",
+                "title": "Harry Potter and the Sorcerer's Stone",
+                "author": "J. K. Rowling",
+                "rating_count": 10_000,
+            }
+        ]
+    )
+    client = TestClient(app)
+    resp = client.post(
+        "/api/interactions",
+        json={
+            "userId": 42,
+            "isbn": "ISBN0001",
+            "eventType": "READ",
+            "createdAtMs": 1_700_000_000_000,
+        },
+    )
+    assert resp.status_code == 200
+
+    data = client.get("/api/top-picks?userId=42").json()
+    assert data["contextIsbn"] == "ISBN0001"
+    assert 30 <= len(data["picks"]) <= 40
+    assert all(p["isbn"] != "ISBN0001" for p in data["picks"])
+    assert [p["isbn"] for p in data["picks"][:3]] != ["HP0001"]
+
+
+def test_warm_user_without_cached_picks_generates_and_persists():
+    client = TestClient(app)
+    resp = client.post(
+        "/api/interactions",
+        json={
+            "userId": 42,
+            "isbn": "ISBN0001",
+            "eventType": "READ",
+            "createdAtMs": 1_700_000_000_000,
+        },
+    )
+    assert resp.status_code == 200
+    top_picks_store.clear()
+    assert top_picks_store.get_cached_picks(42) is None
+
+    data = client.get("/api/top-picks?userId=42").json()
+    assert data["contextIsbn"] == "ISBN0001"
+    assert 30 <= len(data["picks"]) <= 40
+    cached = top_picks_store.get_cached_picks(42)
+    assert cached is not None
+    assert len(cached["picks"]) == len(data["picks"])
+
+
+def test_get_top_picks_returns_503_when_db_unavailable(monkeypatch):
+    from app.db.errors import DatabaseUnavailable
+
+    def boom(*_args, **_kwargs):
+        raise DatabaseUnavailable("database unavailable")
+
+    monkeypatch.setattr(top_picks_store, "get_top_picks", boom)
+    client = TestClient(app)
+    resp = client.get("/api/top-picks?userId=1")
+    assert resp.status_code == 503
+
+
+def test_post_interaction_returns_503_when_db_unavailable(monkeypatch):
+    from app.db.errors import DatabaseUnavailable
+    from app.kafka import consumer_worker as worker
+
+    def boom(*_args, **_kwargs):
+        raise DatabaseUnavailable("database unavailable")
+
+    monkeypatch.setattr(worker, "apply_interaction", boom)
+    client = TestClient(app)
+    resp = client.post(
+        "/api/interactions",
+        json={
+            "userId": 1,
+            "isbn": "ISBN0001",
+            "eventType": "READ",
+            "createdAtMs": 1,
+        },
+    )
+    assert resp.status_code == 503
+
+
+def test_search_returns_503_when_db_unavailable(monkeypatch):
+    from app.api import routes as api_routes
+    from app.db.errors import DatabaseUnavailable
+
+    def boom(*_args, **_kwargs):
+        raise DatabaseUnavailable("database unavailable")
+
+    monkeypatch.setattr(api_routes, "search_books", boom)
+    client = TestClient(app)
+    resp = client.get("/api/search", params={"q": "Harry", "limit": 5})
+    assert resp.status_code == 503

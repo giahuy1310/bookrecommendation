@@ -1,0 +1,21 @@
+services:
+  db:
+    image: postgres:16
+    container_name: bookrecommendation-db
+    environment:
+      POSTGRES_DB: bookrecommendation
+      POSTGRES_USER: bookrec
+      POSTGRES_PASSWORD: bookrec
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bookrec -d bookrecommendation"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
+volumes:
+  pgdata:

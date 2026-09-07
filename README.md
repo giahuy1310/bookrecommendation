@@ -257,6 +257,22 @@ cd bookrecommendation
 pip install -r requirements.txt
 ```
 
+### Postgres (Docker) + DBeaver
+
+Local catalog and ratings live in PostgreSQL 16 via Docker Compose:
+
+```bash
+docker compose up -d
+cp .env.example .env   # sets DATABASE_URL
+cd backend && pip install -r requirements.txt
+python -m app.db.seed          # full Users/Books/Ratings load; skip if already seeded
+python -m app.db.seed --force  # truncate and reload
+```
+
+**DBeaver connection:** host `localhost`, port `5432`, database `bookrecommendation`, username `bookrec`, password `bookrec` (same as `docker-compose.yml` / `.env.example`).
+
+If another Postgres already listens on `localhost:5432`, stop it or change the Compose host port mapping so DBeaver/`DATABASE_URL` reach the `bookrecommendation-db` container.
+
 The dataset files (`Ratings.csv`, `Users.csv`, and book metadata in `data.zip`) are committed to the repository. The notebook also downloads them automatically if missing:
 
 ```python

@@ -8,6 +8,12 @@ import zipfile
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
+from sqlalchemy import or_, select
+
+from app.db.models import Book
+from app.db.session import sync_session
+from app.services.store_mode import use_memory_stores
+
 # Repo root is two levels up from backend/app/services/ (local/dev default DATA_DIR).
 _REPO_ROOT = Path(__file__).resolve().parents[3]
 
@@ -95,14 +101,57 @@ def get_catalog(limit: Optional[int] = None) -> List[Dict[str, Any]]:
     if _catalog is None:
         env_limit = os.getenv("BOOKS_CATALOG_LIMIT")
         load_limit = int(env_limit) if env_limit else limit
-        _catalog = load_books(limit=load_limit)
+        if use_memory_stores():
+            _catalog = load_books(limit=load_limit)
+        else:
+            _catalog = _load_catalog_pg(load_limit)
     return _catalog
 
 
+def _load_catalog_pg(limit: Optional[int]) -> List[Dict[str, Any]]:
+    with sync_session() as session:
+        stmt = select(Book)
+        if limit is not None:
+            stmt = stmt.limit(limit)
+        books = session.scalars(stmt).all()
+    return [
+        {
+            "ISBN": book.isbn,
+            "Book-Title": book.title,
+            "Book-Author": book.author,
+            "Year-Of-Publication": "" if book.year is None else str(book.year),
+            "Publisher": book.publisher or "",
+            "Image-URL-S": book.image_url_s or "",
+            "Image-URL-M": book.image_url_m or "",
+            "Image-URL-L": book.image_url_l or "",
+        }
+        for book in books
+    ]
+
+
+def _row_from_book(book: Book) -> Dict[str, Any]:
+    return {
+        "isbn": book.isbn,
+        "title": book.title,
+        "author": book.author,
+        "year": "" if book.year is None else str(book.year),
+        "publisher": book.publisher or "",
+        "imageUrlS": book.image_url_s or "",
+        "imageUrlM": book.image_url_m or "",
+        "imageUrlL": book.image_url_l or "",
+    }
+
+
 def search_books(q: str, limit: int = 20) -> List[Dict[str, Any]]:
-    query = (q or "").strip().lower()
+    query = (q or "").strip()
     if not query:
         return []
+    if use_memory_stores() or has_catalog_override():
+        return _search_memory(query.lower(), limit)
+    return _search_pg(query, limit)
+
+
+def _search_memory(query: str, limit: int) -> List[Dict[str, Any]]:
     results: List[Dict[str, Any]] = []
     for book in get_catalog():
         title = str(book.get("Book-Title", "")).lower()
@@ -123,3 +172,21 @@ def search_books(q: str, limit: int = 20) -> List[Dict[str, Any]]:
             if len(results) >= limit:
                 break
     return results
+
+
+def _search_pg(query: str, limit: int) -> List[Dict[str, Any]]:
+    escaped = query.replace("\\", "\\\\").replace("%", "\\%").replace("_", "\\_")
+    pattern = f"%{escaped}%"
+    with sync_session() as session:
+        stmt = (
+            select(Book)
+            .where(
+                or_(
+                    Book.title.ilike(pattern, escape="\\"),
+                    Book.author.ilike(pattern, escape="\\"),
+                )
+            )
+            .limit(limit)
+        )
+        books = session.scalars(stmt).all()
+    return [_row_from_book(book) for book in books]

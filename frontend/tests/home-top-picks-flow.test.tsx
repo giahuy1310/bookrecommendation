@@ -40,10 +40,60 @@ test("home section shows one row and no expanded grid", async () => {
   render(<TopPicksSection userId={123} />);
 
   await waitFor(() => {
-    expect(screen.getAllByTestId("book-card")).toHaveLength(15);
+    expect(screen.getAllByTestId("book-card")).toHaveLength(3);
   });
   expect(screen.getAllByRole("heading", { name: /Top picks for you/i })).toHaveLength(
     1
+  );
+});
+
+test("home slider uses coverUrl when present and placeholders otherwise", async () => {
+  (fetchTopPicks as jest.Mock).mockResolvedValue({
+    userId: 123,
+    contextIsbn: null,
+    picks: [
+      {
+        isbn: "isbn-0",
+        title: "Covered",
+        author: "Author 0",
+        finalScore: 3,
+        coverUrl: "https://covers.openlibrary.org/b/isbn/isbn-0-L.jpg",
+      },
+      {
+        isbn: "isbn-1",
+        title: "Plain",
+        author: "Author 1",
+        finalScore: 2,
+      },
+      {
+        isbn: "isbn-2",
+        title: "Null cover",
+        author: "Author 2",
+        finalScore: 1,
+        coverUrl: null,
+      },
+      {
+        isbn: "isbn-3",
+        title: "Hidden",
+        author: "Author 3",
+        finalScore: 0,
+      },
+    ],
+  });
+
+  render(<TopPicksSection userId={123} />);
+
+  const cards = await screen.findAllByTestId("book-card");
+  expect(cards).toHaveLength(3);
+  expect(cards[0].querySelector("img")).toHaveAttribute(
+    "src",
+    "https://covers.openlibrary.org/b/isbn/isbn-0-L.jpg"
+  );
+  expect(cards[1].querySelector("img")?.getAttribute("src")).toMatch(
+    /^\/bookly\/product-item\d+\.png$/
+  );
+  expect(cards[2].querySelector("img")?.getAttribute("src")).toMatch(
+    /^\/bookly\/product-item\d+\.png$/
   );
 });
 

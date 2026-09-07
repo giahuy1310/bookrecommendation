@@ -4,13 +4,7 @@ import React from "react";
 import { Navigation } from "swiper/modules";
 import { Swiper, SwiperSlide } from "swiper/react";
 import BookCard from "./BookCard";
-
-type Pick = {
-  isbn: string;
-  title: string;
-  author: string;
-  finalScore: number;
-};
+import type { Pick } from "../lib/api";
 
 type Props = {
   picks: Pick[];
@@ -23,7 +17,7 @@ export default function HorizontalPicksRow({
   onAddToCollection,
   onAddToCart,
 }: Props) {
-  const visible = picks.slice(0, 15);
+  const visible = picks.slice(0, 3);
 
   if (visible.length === 0) {
     return null;

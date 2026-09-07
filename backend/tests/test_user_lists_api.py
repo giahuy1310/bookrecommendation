@@ -1,8 +1,10 @@
+import pytest
 from fastapi.testclient import TestClient
 
 from app.kafka import producer as kafka_producer
 from app.main import app
-from app.services import books_search, top_picks_store, user_lists, user_state
+from app.services import books_search, interactions, top_picks_store, user_lists, user_state
+from app.services import cover_resolver
 
 SAMPLE_BOOKS = [
     {
@@ -30,10 +32,19 @@ SAMPLE_BOOKS = [
 ]
 
 
+@pytest.fixture(autouse=True)
+def _no_open_library(monkeypatch):
+    monkeypatch.setattr(
+        cover_resolver, "_open_library_has_cover", lambda isbn, timeout: False
+    )
+
+
 def setup_function():
     top_picks_store.clear()
     user_state.clear()
     user_lists.clear()
+    interactions.clear()
+    cover_resolver.clear()
     books_search.set_catalog(SAMPLE_BOOKS)
     kafka_producer.set_producer(None)
 
@@ -42,6 +53,8 @@ def teardown_function():
     top_picks_store.clear()
     user_state.clear()
     user_lists.clear()
+    interactions.clear()
+    cover_resolver.clear()
     books_search.reset_catalog()
     kafka_producer.set_producer(None)
 
@@ -71,6 +84,7 @@ def test_collection_empty_then_populated_via_interaction():
     assert data["items"][0]["isbn"] == "ISBN0003"
     assert data["items"][0]["title"] == "Title 3"
     assert data["items"][0]["author"] == "Author 3"
+    assert "coverUrl" in data["items"][0]
 
 
 def test_cart_empty_then_populated_via_interaction():
@@ -155,3 +169,27 @@ def test_stale_add_to_cart_still_appears_in_cart():
 
     picks = client.get("/api/top-picks?userId=88").json()
     assert picks["contextIsbn"] == "ISBN0005"
+
+
+def test_collection_returns_503_when_db_unavailable(monkeypatch):
+    from app.db.errors import DatabaseUnavailable
+
+    def boom(*_args, **_kwargs):
+        raise DatabaseUnavailable("database unavailable")
+
+    monkeypatch.setattr(user_lists, "get_collection", boom)
+    client = TestClient(app)
+    resp = client.get("/api/collection?userId=1")
+    assert resp.status_code == 503
+
+
+def test_cart_returns_503_when_db_unavailable(monkeypatch):
+    from app.db.errors import DatabaseUnavailable
+
+    def boom(*_args, **_kwargs):
+        raise DatabaseUnavailable("database unavailable")
+
+    monkeypatch.setattr(user_lists, "get_cart", boom)
+    client = TestClient(app)
+    resp = client.get("/api/cart?userId=1")
+    assert resp.status_code == 503

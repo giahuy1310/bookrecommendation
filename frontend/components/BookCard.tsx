@@ -7,6 +7,7 @@ type Pick = {
   title: string;
   author: string;
   finalScore?: number;
+  coverUrl?: string | null;
 };
 
 type Props = {
@@ -36,7 +37,7 @@ export default function BookCard({
     >
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img
-        src={coverForIsbn(pick.isbn)}
+        src={pick.coverUrl ?? coverForIsbn(pick.isbn)}
         className="img-fluid shadow-sm"
         alt=""
       />

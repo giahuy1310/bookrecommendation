@@ -1,78 +1,22 @@
 """Latest context ISBN per user.
 
-Redis key (when Redis is configured): `user_context:{userId}`
-Value JSON: `{ "isbn": str, "createdAtMs": int | null }`
-
-In-memory fallback uses a lock so check-then-write is atomic within a process.
-Redis path uses WATCH/MULTI compare-and-set so API and worker share ordering.
-
-In-memory is used only when REDIS_URL is absent. If REDIS_URL is set,
-connection and operation errors propagate (no silent memory fallback).
+Postgres stores context on `top_picks`. Tests set STORE_BACKEND=memory.
+Stale events (older createdAtMs) are ignored.
 """
 
 from __future__ import annotations
 
-import json
-import os
 import threading
 from typing import Dict, Optional, Tuple
+
+from app.db.ensure import ensure_user
+from app.db.models import TopPicks
+from app.db.session import sync_session
+from app.services.store_mode import use_memory_stores
 
 _lock = threading.Lock()
 _context_by_user: Dict[int, str] = {}
 _created_at_by_user: Dict[int, int] = {}
-_redis_client = None
-
-
-def _redis_configured() -> bool:
-    return bool(os.getenv("REDIS_URL"))
-
-
-def _get_redis():
-    """Return a Redis client when REDIS_URL is set; errors propagate."""
-    global _redis_client
-    url = os.getenv("REDIS_URL")
-    if not url:
-        return None
-    if _redis_client is not None:
-        return _redis_client
-    import redis
-
-    client = redis.from_url(url)
-    client.ping()
-    _redis_client = client
-    return _redis_client
-
-
-def _key(user_id: int) -> str:
-    return f"user_context:{user_id}"
-
-
-def _set_context_redis(user_id: int, isbn: str, created_at_ms: Optional[int]) -> bool:
-    """Atomic CAS on Redis: refuse if created_at_ms is older than stored."""
-    import redis as redis_lib
-
-    client = _get_redis()
-    assert client is not None
-    key = _key(user_id)
-    payload = {"isbn": isbn, "createdAtMs": created_at_ms}
-
-    with client.pipeline() as pipe:
-        while True:
-            try:
-                pipe.watch(key)
-                raw = pipe.get(key)
-                if raw and created_at_ms is not None:
-                    existing = json.loads(raw)
-                    prev = existing.get("createdAtMs")
-                    if prev is not None and created_at_ms < prev:
-                        pipe.unwatch()
-                        return False
-                pipe.multi()
-                pipe.set(key, json.dumps(payload))
-                pipe.execute()
-                return True
-            except redis_lib.WatchError:
-                continue
 
 
 def set_context_isbn(
@@ -81,48 +25,59 @@ def set_context_isbn(
     created_at_ms: Optional[int] = None,
 ) -> bool:
     """Set latest context ISBN. Returns False if the event is stale (ignored)."""
-    if _redis_configured():
-        ok = _set_context_redis(user_id, isbn, created_at_ms)
-        if ok:
-            with _lock:
-                _context_by_user[user_id] = isbn
-                if created_at_ms is not None:
-                    _created_at_by_user[user_id] = created_at_ms
-        return ok
+    if use_memory_stores():
+        with _lock:
+            if created_at_ms is not None:
+                prev = _created_at_by_user.get(user_id)
+                if prev is not None and created_at_ms < prev:
+                    return False
+                _created_at_by_user[user_id] = created_at_ms
+            _context_by_user[user_id] = isbn
+            return True
 
-    with _lock:
-        if created_at_ms is not None:
-            prev = _created_at_by_user.get(user_id)
-            if prev is not None and created_at_ms < prev:
-                return False
-            _created_at_by_user[user_id] = created_at_ms
-        _context_by_user[user_id] = isbn
+    with sync_session() as session:
+        ensure_user(session, user_id)
+        row = session.get(TopPicks, user_id)
+        if (
+            created_at_ms is not None
+            and row is not None
+            and row.created_at_ms is not None
+            and created_at_ms < row.created_at_ms
+        ):
+            return False
+        if row is None:
+            session.add(
+                TopPicks(
+                    user_id=user_id,
+                    context_isbn=isbn,
+                    picks=[],
+                    created_at_ms=created_at_ms,
+                )
+            )
+        else:
+            row.context_isbn = isbn
+            row.created_at_ms = created_at_ms
         return True
 
 
 def get_context_isbn(user_id: int) -> Optional[str]:
-    if _redis_configured():
-        client = _get_redis()
-        assert client is not None
-        raw = client.get(_key(user_id))
-        if raw:
-            return json.loads(raw).get("isbn")
-        return None
-    with _lock:
-        return _context_by_user.get(user_id)
+    if use_memory_stores():
+        with _lock:
+            return _context_by_user.get(user_id)
+    with sync_session() as session:
+        row = session.get(TopPicks, user_id)
+        return row.context_isbn if row is not None else None
 
 
 def get_context(user_id: int) -> Tuple[Optional[str], Optional[int]]:
-    if _redis_configured():
-        client = _get_redis()
-        assert client is not None
-        raw = client.get(_key(user_id))
-        if raw:
-            data = json.loads(raw)
-            return data.get("isbn"), data.get("createdAtMs")
-        return None, None
-    with _lock:
-        return _context_by_user.get(user_id), _created_at_by_user.get(user_id)
+    if use_memory_stores():
+        with _lock:
+            return _context_by_user.get(user_id), _created_at_by_user.get(user_id)
+    with sync_session() as session:
+        row = session.get(TopPicks, user_id)
+        if row is None:
+            return None, None
+        return row.context_isbn, row.created_at_ms
 
 
 def clear() -> None:

@@ -3,6 +3,7 @@ export type Pick = {
   title: string;
   author: string;
   finalScore: number;
+  coverUrl?: string | null;
 };
 
 export type TopPicksResponse = {
@@ -15,6 +16,7 @@ export type BookRow = {
   isbn: string;
   title: string;
   author: string;
+  coverUrl?: string | null;
 };
 
 export type InteractionEvent = {

@@ -9,7 +9,7 @@ from typing import Any, Dict
 
 from app.kafka.client import TOPIC_USER_INTERACTIONS, kafka_bootstrap_servers, kafka_enabled
 from app.schemas import InteractionEvent
-from app.services import books_search, user_lists, user_state
+from app.services import books_search, interactions, user_lists, user_state
 from app.services.recommendations_stub import generate_stub_picks
 from app.services.top_picks_store import set_top_picks
 from model import als_inference, model_config
@@ -32,7 +32,7 @@ def _generate_picks(user_id: int, context_isbn: str) -> list[Dict[str, Any]]:
 
     books = books_search.get_catalog()
     return [
-        pick.model_dump()
+        pick.model_dump(exclude_none=True)
         for pick in generate_stub_picks(user_id, context_isbn, books)
     ]
 
@@ -44,6 +44,7 @@ def apply_interaction(event: InteractionEvent) -> bool:
     append to collection/cart for ADD_TO_* types. Returns False when
     context/top-picks were skipped as stale.
     """
+    interactions.record(event)
     if event.eventType == "ADD_TO_COLLECTION":
         user_lists.add_to_collection(event.userId, event.isbn)
     elif event.eventType == "ADD_TO_CART":
